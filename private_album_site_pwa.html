@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我的私人相册</title>
+  <meta name="theme-color" content="#7a2b8a">
+  <meta name="description" content="离线可用的私人相册，支持本地保存、分类管理、备注编辑与一键导入导出。">
+  <style>
+    :root{
+      --bg:#faf7fd;
+      --panel:#ffffff;
+      --ink:#2b2b2b;
+      --muted:#6b6b6b;
+      --brand:#7a2b8a;
+      --brand-2:#4d1a57;
+      --ring:#e4ccf1;
+      --danger:#c62828;
+      --ok:#2e7d32;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color:var(--ink);
+      background: radial-gradient(1200px 800px at 10% -10%, #f1e6fa, transparent), var(--bg);
+    }
+    .app{
+      display:grid;
+      grid-template-columns: 270px 1fr;
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        "sidebar header"
+        "sidebar main";
+      height:100vh;
+      gap:12px;
+      padding:12px;
+    }
+    header{
+      grid-area: header;
+      background: var(--panel);
+      border-radius:14px;
+      padding:10px 14px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      box-shadow:0 4px 16px rgba(122,43,138,.08);
+    }
+    .brand{font-weight:800; color:var(--brand); letter-spacing:.3px}
+    .grow{flex:1}
+    .search{
+      display:flex; align-items:center; gap:8px; background:#faf6ff; border:1px solid #f0e6fa; padding:6px 10px; border-radius:999px;
+    }
+    .search input{border:none; background:transparent; outline:none; min-width:140px}
+    .btn{
+      appearance:none; border:none; border-radius:10px; padding:8px 12px; background:var(--brand); color:#fff; cursor:pointer;
+      box-shadow:0 6px 16px rgba(122,43,138,.18); font-size:14px;
+    }
+    .btn.secondary{ background:#fff; color:var(--brand-2); border:1px solid #ead9f4; }
+    .btn.danger{ background:var(--danger);}
+    .btn.ghost{ background:transparent; color:var(--brand-2); border:1px dashed #dbc7ec; }
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+    aside{
+      grid-area: sidebar;
+      background: var(--panel);
+      border-radius:14px;
+      padding:14px;
+      box-shadow:0 4px 16px rgba(122,43,138,.08);
+      display:flex; flex-direction:column; gap:12px;
+      overflow:auto;
+    }
+    .side-title{ font-size:13px; color:var(--muted); letter-spacing:.3px }
+    .album-list{ display:flex; flex-direction:column; gap:6px; }
+    .album{
+      display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; cursor:pointer;
+    }
+    .album.active{ background:#f6effc; box-shadow: inset 0 0 0 1px #ead9f4; }
+    .album .count{ margin-left:auto; font-size:12px; color:var(--muted) }
+    .album .name{ font-weight:600 }
+    main{
+      grid-area: main;
+      background: var(--panel);
+      border-radius:14px;
+      padding:14px;
+      box-shadow:0 4px 16px rgba(122,43,138,.08);
+      overflow:auto;
+      display:flex; flex-direction:column; gap:12px;
+    }
+    .toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+    .crumbs{ color:var(--muted); font-size:13px }
+    .gallery{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap:12px;
+      align-content:start;
+      padding-bottom:20px;
+    }
+    .card{
+      position:relative; border:1px solid #eee4f7; border-radius:14px; overflow:hidden; background:#fff;
+      display:grid; grid-template-rows: auto auto;
+      transition:.15s transform ease, .15s box-shadow ease;
+    }
+    .card:hover{ transform: translateY(-2px); box-shadow:0 10px 22px rgba(122,43,138,.12); }
+    .thumb{ width:100%; aspect-ratio: 4/3; display:block; object-fit:cover; background:#faf6ff; }
+    .meta{ padding:8px 10px; display:flex; gap:8px; align-items:center }
+    .caption{
+      flex:1; min-height:20px; outline:none; border-radius:6px; padding:2px 6px;
+    }
+    .caption:focus{ box-shadow: inset 0 0 0 2px var(--ring); background:#faf6ff }
+    .actions{ display:flex; gap:6px }
+    .chip{
+      display:inline-flex; align-items:center; gap:6px; padding:6px 8px; border-radius:999px; background:#faf6ff; border:1px solid #ead9f4; font-size:12px;
+    }
+    .empty{
+      text-align:center; color:var(--muted); padding:30px 10px;
+    }
+    .dropzone{
+      border:2px dashed #d7c1ee; border-radius:14px; padding:18px; text-align:center; color:#69407b; background:#fcf9ff;
+    }
+    .dropzone.drag{ background:#f4ebff; border-color:#bda0df }
+    .hint{ font-size:12px; color:var(--muted) }
+    .kbd{ padding:1px 6px; border:1px solid #ddd; border-radius:6px; font-size:12px; background:#fff }
+    .right{ margin-left:auto }
+    .select{ padding:7px 10px; border-radius:10px; border:1px solid #ead9f4; background:#fff }
+    .hidden{ display:none }
+    .badge{ font-size:12px; color:#fff; background:var(--ok); padding:4px 8px; border-radius:999px }
+    .install{ background:#fff; color:var(--brand-2); border:1px solid #ead9f4; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="side-title">相册（分类）</div>
+      <div class="toolbar">
+        <button class="btn secondary" id="newAlbum">新建分类</button>
+        <button class="btn ghost" id="renameAlbum">重命名</button>
+        <button class="btn danger" id="deleteAlbum">删除分类</button>
+      </div>
+      <div class="album-list" id="albums"></div>
+      <div class="hint">📌 支持自定义分类；拖拽照片到左侧分类可快速移动。</div>
+    </aside>
+
+    <header>
+      <div class="brand">我的私人相册</div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="grow"></div>
+      <button class="btn install hidden" id="installBtn">安装到桌面</button>
+      <label class="btn secondary" for="fileInput">添加照片</label>
+      <input class="hidden" id="fileInput" type="file" accept="image/*" multiple>
+      <button class="btn" id="exportBtn">导出库</button>
+      <label class="btn ghost" for="importInput">导入库</label>
+      <input class="hidden" id="importInput" type="file" accept="application/json">
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <div class="chip">当前分类：<strong id="currentName">未分类</strong></div>
+        <select id="sort" class="select">
+          <option value="newest">按添加时间（新→旧）</option>
+          <option value="oldest">按添加时间（旧→新）</option>
+          <option value="name">按文件名</option>
+        </select>
+        <div class="right badge" id="status">就绪</div>
+      </div>
+
+      <div id="drop" class="dropzone">把照片拖进来，或点击右上角 “添加照片” 上传</div>
+
+      <section class="gallery" id="gallery"></section>
+      <div class="empty" id="empty" style="display:none">这里还没有照片～ 先添加几张吧。</div>
+
+      <div class="hint" style="text-align:center;margin-top:8px">
+        ⚠️ 要“安装到桌面”并离线可用，请将本页面部署到 <strong>HTTPS</strong> 域名（例如 Netlify / Vercel / GitHub Pages）。<br>
+        iPhone/Safari：点“分享”→“添加到主屏幕”。
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // === PWA: Dynamic manifest & service worker (for single-file deploy) ===
+    (function setupPWA(){
+      // 1) generate icon (PNG dataURL) via canvas
+      function iconDataURL(size){
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        // bg
+        const grad = ctx.createLinearGradient(0,0,size,size);
+        grad.addColorStop(0,'#8e44ad');
+        grad.addColorStop(1,'#7a2b8a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,size,size);
+        // heart
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.floor(size*0.56)}px "Apple Color Emoji","Segoe UI Emoji",system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('❤', size/2, size/2 + size*0.02);
+        return c.toDataURL('image/png');
+      }
+
+      // 2) create manifest blob
+      const manifest = {
+        name: "我的私人相册",
+        short_name: "相册",
+        start_url: ".",
+        scope: ".",
+        display: "standalone",
+        background_color: "#7a2b8a",
+        theme_color: "#7a2b8a",
+        icons: [
+          { src: iconDataURL(192), sizes: "192x192", type: "image/png", purpose: "any maskable" },
+          { src: iconDataURL(512), sizes: "512x512", type: "image/png", purpose: "any maskable" }
+        ]
+      };
+      const mblob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+      const murl = URL.createObjectURL(mblob);
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = murl;
+      document.head.appendChild(link);
+
+      // 3) register service worker from a Blob URL (cache this page for offline)
+      if('serviceWorker' in navigator){
+        const swCode = `
+          const CACHE = 'album-site-v1';
+          self.addEventListener('install', e => {
+            self.skipWaiting();
+            e.waitUntil((async () => {
+              const cache = await caches.open(CACHE);
+              // try to cache the root document
+              try { await cache.add(new Request(self.location.href, {mode:'no-cors'})); } catch(_) {}
+            })());
+          });
+          self.addEventListener('activate', e => {
+            e.waitUntil(self.clients.claim());
+          });
+          self.addEventListener('fetch', e => {
+            const req = e.request;
+            // Navigation requests: network-first, fallback to cache
+            if (req.mode === 'navigate') {
+              e.respondWith((async () => {
+                try {
+                  const fresh = await fetch(req);
+                  const cache = await caches.open(CACHE);
+                  cache.put(self.location.href, fresh.clone());
+                  return fresh;
+                } catch (err) {
+                  const cache = await caches.open(CACHE);
+                  const cached = await cache.match(self.location.href);
+                  return cached || Response.error();
+                }
+              })());
+              return;
+            }
+            // others: cache-first
+            e.respondWith((async () => {
+              const cache = await caches.open(CACHE);
+              const hit = await cache.match(req);
+              if (hit) return hit;
+              try {
+                const resp = await fetch(req);
+                if (req.url.startsWith(self.location.origin)) cache.put(req, resp.clone());
+                return resp;
+              } catch (err) {
+                return Response.error();
+              }
+            })());
+          });
+        `;
+        const swBlob = new Blob([swCode], {type:'text/javascript'});
+        const swUrl = URL.createObjectURL(swBlob);
+        navigator.serviceWorker.register(swUrl).catch(console.error);
+      }
+
+      // 4) A2HS install prompt (Android/Chrome)
+      let deferredPrompt = null;
+      const installBtn = document.getElementById('installBtn');
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.classList.remove('hidden');
+      });
+      installBtn?.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        installBtn.disabled = true;
+        await deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        installBtn.classList.add('hidden');
+      });
+      window.addEventListener('appinstalled', () => {
+        const status = document.getElementById('status');
+        if(status) { status.textContent = '已安装 ✓'; }
+      });
+    })();
+  </script>
+
+  <script>
+    // --- Simple UUID ---
+    const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = crypto.getRandomValues(new Uint8Array(1))[0] & 15;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+
+    // --- IndexedDB for blobs ---
+    let db;
+    function openDB(){
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('photoDB', 1);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          if(!db.objectStoreNames.contains('files')) db.createObjectStore('files');
+        };
+        req.onsuccess = () => { db = req.result; resolve(); };
+        req.onerror = () => reject(req.error);
+      });
+    }
+    function putBlob(key, blob){
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        tx.objectStore('files').put(blob, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+    function getBlob(key){
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readonly');
+        const rq = tx.objectStore('files').get(key);
+        rq.onsuccess = () => resolve(rq.result || null);
+        rq.onerror = () => reject(rq.error);
+      });
+    }
+    function deleteBlob(key){
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        tx.objectStore('files').delete(key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    // --- Metadata in localStorage ---
+    const loadMeta = () => {
+      try{
+        const m = JSON.parse(localStorage.getItem('album-meta')||'{}');
+        if(!m.albums) m.albums = [{id:'__default', name:'未分类'}];
+        if(!m.current) m.current = '__default';
+        if(!m.photos) m.photos = {}; // id -> {name, album, caption, created}
+        return m;
+      }catch(_){
+        return { albums:[{id:'__default', name:'未分类'}], current:'__default', photos:{} };
+      }
+    };
+    const saveMeta = () => localStorage.setItem('album-meta', JSON.stringify(meta));
+
+    let meta = loadMeta();
+
+    // --- UI Elements ---
+    const els = {
+      albums: document.getElementById('albums'),
+      crumbs: document.getElementById('crumbs'),
+      currentName: document.getElementById('currentName'),
+      gallery: document.getElementById('gallery'),
+      empty: document.getElementById('empty'),
+      drop: document.getElementById('drop'),
+      sort: document.getElementById('sort'),
+      status: document.getElementById('status'),
+      fileInput: document.getElementById('fileInput'),
+      importInput: document.getElementById('importInput'),
+    };
+
+    // --- Render albums ---
+    function renderAlbums(){
+      els.albums.innerHTML = '';
+      meta.albums.forEach(a => {
+        const count = Object.values(meta.photos).filter(p => p.album === a.id).length;
+        const row = document.createElement('div');
+        row.className = 'album' + (a.id === meta.current ? ' active':'');
+        row.draggable = true;
+        row.dataset.id = a.id;
+        row.innerHTML = `<span>📁</span><span class='name'>${a.name}</span><span class='count'>${count}</span>`;
+        row.addEventListener('click', () => { meta.current = a.id; saveMeta(); renderAll(); });
+        // drop target: move photo to album
+        row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('active'); });
+        row.addEventListener('dragleave', () => row.classList.remove('active'));
+        row.addEventListener('drop', e => {
+          e.preventDefault();
+          row.classList.remove('active');
+          const pid = e.dataTransfer.getData('text/x-photo-id');
+          if(pid && meta.photos[pid]) { meta.photos[pid].album = a.id; saveMeta(); renderAll(); }
+        });
+        els.albums.appendChild(row);
+      });
+    }
+
+    // --- Render gallery ---
+    async function renderGallery(){
+      const list = Object.entries(meta.photos)
+        .filter(([,p]) => p.album === meta.current)
+        .map(([id,p]) => ({id, ...p}));
+
+      const sortBy = els.sort.value;
+      list.sort((a,b)=>{
+        if(sortBy==='newest') return b.created - a.created;
+        if(sortBy==='oldest') return a.created - b.created;
+        if(sortBy==='name') return (a.name||'').localeCompare(b.name||'');
+        return 0;
+      });
+
+      els.gallery.innerHTML = '';
+      els.empty.style.display = list.length ? 'none' : 'block';
+      document.getElementById('currentName').textContent = (meta.albums.find(a=>a.id===meta.current)||{}).name || '未分类';
+      els.crumbs.textContent = `位置：/${(meta.albums.find(a=>a.id===meta.current)||{}).name||'未分类'}`;
+
+      for(const p of list){
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.draggable = true;
+        card.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('text/x-photo-id', p.id);
+        });
+        const blob = await getBlob(p.id);
+        const url = blob ? URL.createObjectURL(blob) : '';
+        card.innerHTML = `
+          <img class="thumb" src="${url}" alt="${p.name||''}">
+          <div class="meta">
+            <div class="caption" contenteditable="true" data-id="${p.id}" spellcheck="false" placeholder="添加备注...">${p.caption||''}</div>
+            <div class="actions">
+              <button class="btn secondary" data-act="move" data-id="${p.id}">移动</button>
+              <a class="btn ghost" download="${p.name||('photo-'+p.id)}" href="${url}">下载</a>
+              <button class="btn danger" data-act="del" data-id="${p.id}">删除</button>
+            </div>
+          </div>`;
+        els.gallery.appendChild(card);
+      }
+    }
+
+    // --- Add photos ---
+    async function addFiles(files){
+      if(!files || !files.length) return;
+      setStatus('正在添加…');
+      for(const f of files){
+        if(!f.type.startsWith('image/')) continue;
+        const id = uuid();
+        await putBlob(id, f);
+        meta.photos[id] = {
+          name: f.name,
+          album: meta.current,
+          caption: '',
+          created: Date.now()
+        };
+      }
+      saveMeta();
+      await renderAll();
+      setStatus('添加完成 ✓');
+      setTimeout(()=>setStatus('就绪'), 1200);
+    }
+
+    // --- Delete photo ---
+    async function deletePhoto(id){
+      if(!confirm('确定删除这张照片吗？此操作不可恢复。')) return;
+      await deleteBlob(id);
+      delete meta.photos[id];
+      saveMeta();
+      renderAll();
+    }
+
+    // --- Move photo ---
+    function movePhoto(id){
+      const names = meta.albums.map(a => a.name);
+      const choice = prompt('移动到哪个分类？\n' + names.map((n,i)=>`${i+1}. ${n}`).join('\n'));
+      const idx = parseInt(choice,10)-1;
+      if(isFinite(idx) && meta.albums[idx]){
+        meta.photos[id].album = meta.albums[idx].id;
+        saveMeta(); renderAll();
+      }
+    }
+
+    // --- Albums CRUD ---
+    function newAlbum(){
+      const name = prompt('新建分类名称：');
+      if(!name) return;
+      const id = uuid();
+      meta.albums.push({id, name});
+      meta.current = id;
+      saveMeta(); renderAll();
+    }
+    function renameAlbum(){
+      if(meta.current==='__default'){ alert('“未分类”不支持重命名'); return; }
+      const a = meta.albums.find(x=>x.id===meta.current);
+      if(!a) return;
+      const name = prompt('新的分类名称：', a.name);
+      if(!name) return;
+      a.name = name;
+      saveMeta(); renderAll();
+    }
+    function deleteAlbum(){
+      if(meta.current==='__default'){ alert('“未分类”不能删除'); return; }
+      const a = meta.albums.find(x=>x.id===meta.current);
+      const count = Object.values(meta.photos).filter(p=>p.album===meta.current).length;
+      if(!confirm(`删除分类“${a.name}”？其中 ${count} 张照片将移动到“未分类”。`)) return;
+      // move photos to default
+      Object.values(meta.photos).forEach(p => { if(p.album===meta.current) p.album='__default'; });
+      meta.albums = meta.albums.filter(x=>x.id!==meta.current);
+      meta.current='__default';
+      saveMeta(); renderAll();
+    }
+
+    // --- Export / Import ---
+    async function exportDB(){
+      setStatus('正在导出…');
+      const payload = { meta, images: {} };
+      const ids = Object.keys(meta.photos);
+      for(const id of ids){
+        const blob = await getBlob(id);
+        if(blob){
+          const dataUrl = await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(blob); });
+          payload.images[id] = dataUrl;
+        }
+      }
+      const json = JSON.stringify(payload);
+      const file = new Blob([json], {type:'application/json'});
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      const date = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+      a.href = url; a.download = `my-album-backup-${date}.json`;
+      a.click();
+      setStatus('已导出 ✓');
+      setTimeout(()=>setStatus('就绪'), 1200);
+    }
+    async function importDB(file){
+      if(!file) return;
+      if(!confirm('导入将覆盖当前库，确定继续？')) return;
+      setStatus('正在导入…');
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      // wipe existing
+      const keys = Object.keys(meta.photos);
+      for(const k of keys){ await deleteBlob(k); }
+      meta = payload.meta;
+      // restore images
+      for(const [id, dataUrl] of Object.entries(payload.images||{})){
+        const res = await fetch(dataUrl);
+        const b = await res.blob();
+        await putBlob(id, b);
+      }
+      saveMeta();
+      await renderAll();
+      setStatus('导入完成 ✓');
+      setTimeout(()=>setStatus('就绪'), 1200);
+    }
+
+    function setStatus(text){ els.status.textContent = text; }
+
+    // --- Events ---
+    document.getElementById('newAlbum').addEventListener('click', newAlbum);
+    document.getElementById('renameAlbum').addEventListener('click', renameAlbum);
+    document.getElementById('deleteAlbum').addEventListener('click', deleteAlbum);
+    els.sort.addEventListener('change', ()=>renderGallery());
+    document.getElementById('exportBtn').addEventListener('click', exportDB);
+    els.importInput.addEventListener('change', e => importDB(e.target.files[0]));
+    els.fileInput.addEventListener('change', e => { addFiles(e.target.files); e.target.value=''; });
+
+    // gallery action delegation
+    els.gallery.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if(btn && btn.dataset.act==='del') deletePhoto(btn.dataset.id);
+      if(btn && btn.dataset.act==='move') movePhoto(btn.dataset.id);
+    });
+    els.gallery.addEventListener('input', e => {
+      const cap = e.target.closest('.caption');
+      if(cap){
+        const id = cap.dataset.id;
+        if(meta.photos[id]){ meta.photos[id].caption = cap.innerText.trim(); saveMeta(); }
+      }
+    });
+
+    // Drag & drop on main
+    ;['dragenter','dragover'].forEach(ev=>{
+      window.addEventListener(ev, e=>{ e.preventDefault(); els.drop.classList.add('drag'); });
+    });
+    ;['dragleave','drop'].forEach(ev=>{
+      window.addEventListener(ev, e=>{ e.preventDefault(); els.drop.classList.remove('drag'); });
+    });
+    window.addEventListener('drop', e => {
+      const files = e.dataTransfer.files;
+      if(files && files.length) addFiles(files);
+    });
+
+    // Init
+    (async function init(){
+      await openDB();
+      renderAll();
+    })();
+
+    async function renderAll(){
+      renderAlbums();
+      await renderGallery();
+    }
+  </script>
+</body>
+</html>
